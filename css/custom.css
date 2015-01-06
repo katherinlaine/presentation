@@ -1,13 +1,13 @@
 .reveal .cover {
   color: white;
   text-align: left;
-  margin-left: -190px;
+  margin-left: -220px;
 }
 
 .reveal .author {
   margin-left: -500px;
 }
 
-.reveal {
-  font-family: georgia;
+body {
+  background: #afea9d;
 }

@@ -16,7 +16,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 		<link rel="stylesheet" href="css/reveal.min.css">
-		<link rel="stylesheet" href="css/theme/beige.css" id="theme">
+		<link rel="stylesheet" href="css/theme/serif.css" id="theme">
     <link rel="stylesheet" href="css/custom.css">
 
 		<!-- For syntax highlighting -->
@@ -48,7 +48,7 @@
           <h1 class="cover">Give a</h1>
           <h1 class="cover">Little</h1>
           <br>
-          <h3 class="cover">An app that makes it <br> easy to donate your<br> surplus food.</h3>
+          <h3 class="cover">An app that makes <br> it easy to donate <br> your surplus food.</h3>
           <br>
           <h5 class="cover">Created by Katherin Siracusa</h5>
 				</section>
@@ -57,7 +57,8 @@
 					<h2>About me</h2>
           <br>
           <p>From Storrs, CT </p>
-          <p>Graduated from UConn in 2010</p>
+          <p>Graduated from Uconn</p>
+          <p>BS in International Business, BA in French</p>
           <br>
           <p>I love cooking (and eating),</p>
           <p>being in the woods and mountains,</p>
@@ -72,7 +73,7 @@
         <br>
           <ul>
             <li>Operations Manager at Mercado Global.</li>
-            <li>(HR) and then Manager, Food Sourcing at City Harvest.</li>
+            <li>HR and then Manager, Food Sourcing at City Harvest.</li>
           </ul>
 				</section>
 
@@ -81,7 +82,7 @@
         </section>
 
 				<section>
-					<h2>A bit more about City Harvest</h2>
+					<h2>More about City Harvest</h2>
           <ul>
             <li>1.4 million New Yorkers face hunger each year.</li>
             <li>Goal to rescue 50 million pounds of food this year. </li>
@@ -139,6 +140,12 @@
             alt="screenshot">
           </section>
           <section>
+           <h6>Add admins to specific agencies</h6>
+           <img height="400"
+            src="addanadminclick.png"
+            alt="screenshot">
+          </section>
+          <section>
             <h6>Add agencies individually, or in bulk</h6>
             <img height="250"
             src="csv.png"
@@ -157,13 +164,173 @@
 				</section>
 
         <section>
-          <h2>Code Challenges</h2>
-          <ul>
-            <li>Filters, Searches</li>
-            <li>Admin Levels</li>
-            <li>CSV Importer</li>
-            <li>Maps!
-          </ul>
+          <section>
+            <h2>Code Challenges</h2>
+            <ul>
+              <li>Admin Levels</li>
+              <li>Maps!</li>
+              <li>CSV Importer</li>
+              <li>Filters, Searches</li>
+            </ul>
+          </section>
+          <section>
+            <h3>Admin Levels</li>
+            <pre><code data-trim contenteditable>
+class User < ActiveRecord::Base
+  enum role: [:donor, :agency_admin, :super_admin]
+
+  validates :email, presence: true, uniqueness: true
+  validates :password_digest, presence: true
+
+  belongs_to :agency
+
+  def self.find_agency_admins(agency)
+    where(agency_id: agency.id)
+  end
+
+  def make_agency_admin
+    self.role = "agency_admin"
+  end
+
+  def has_rights_to_edit(agency)
+    self.agency_id == agency.id && self.agency_admin?
+  end
+end
+            </code></pre>
+          </section>
+          <section>
+            <h3>Maps</h3>
+            <pre><code data-trim contenteditable>
+$(function() {
+  L.mapbox.accessToken = MAPBOX_ACCESS_TOKEN
+  var map = L.mapbox.map('map', MAPBOX_MAP_ID, {
+    maxZoom: 16
+  }).setView([40.738, -73.902], 12);
+
+  function addMarkers() {
+    var agencyData = $('#map').data('markers');
+    var markers = L.mapbox.featureLayer(agencyData);
+    markers.addTo(map)
+
+    var locationData = $('#map').data('location');
+    var you = L.mapbox.featureLayer(locationData);
+    you.addTo(map)
+
+    setTimeout(function () {
+      map.fitBounds(markers.getBounds());
+    }, 0);
+  }
+
+  addMarkers();
+});
+            </code></pre>
+        </section>
+        <section>
+          <h3>CSV Importer</h3>
+            <pre><code data-trim contenteditable>
+class CSVImporter
+  def run_import(file, ids)
+    @ids = ids
+    CSV.foreach(file.path, headers: true, encoding: "ISO-8859-1") do |row|
+      @row_data = row.to_hash
+
+      Agency.create! agency_data
+    end
+  end
+
+  private
+
+  def agency_data
+    {
+      name: @row_data["Account Name"].strip,
+      contact: @row_data["Primary Contact"].strip,
+      phone: clean_phone_number(@row_data["Main Phone"]),
+      address: @row_data["Delivery Address Street 1"],
+      city: @row_data["Borough"].strip,
+      zipcode: @row_data["Delivery Address: ZIP Code"].strip,
+      food_type_ids: food_type_ids
+    }
+  end
+
+  def clean_phone_number(number)
+    clean_number = number.strip.gsub(/[^\d]+/, "")
+    "(#{clean_number[0..2]}) #{clean_number[3..5]}-#{clean_number[6..9]}"
+  end
+
+  def food_type_ids
+    look_up_food_types.map do |food_type|
+      food_type.id.to_s
+    end
+  end
+
+  def look_up_food_types
+    collect_accepted_fa_ids(@row_data, @ids).map do |fa_id|
+      FoodType.find_by(feeding_america_id: fa_id)
+    end
+  end
+
+  def collect_accepted_fa_ids(row_data, ids)
+    row_data.select do |key, value|
+      (ids.include? key) && (value == "1")
+    end.keys
+  end
+end
+            </code></pre>
+          </section>
+          <section>
+            <h3>Filters and Searchs</h3>
+            <pre><code data-trim contenteditable>
+class FiltersController < ApplicationController
+  def show
+    @agencies = Agency.all
+
+    check_for_food_type_query
+    check_for_location_query
+    add_markers_and_narrow_search_by_location
+
+    @agencies = @agencies.page params[:page]
+    @agency_markers = GeojsonBuilder.new(@agencies).to_geojson
+  end
+
+  private
+
+  def food_type_params
+    params.permit(:food_types)
+  end
+
+  def check_for_food_type_query
+    if food_type_params[:food_types].present?
+      narrow_by_accepted_food_types
+    end
+  end
+
+  def narrow_by_accepted_food_types
+    @agencies = @agencies.
+      joins(:food_types).
+      where(food_types: { id: food_type_params[:food_types] })
+  end
+
+  def check_for_location_query
+    if !filter_params[:city_search].empty?
+      @location = Geocoder.search(filter_params[:city_search]).first
+    elsif filter_params[:current_location] == "Yes"
+      @location = request.location
+    end
+  end
+
+  def add_markers_and_narrow_search_by_location
+    unless @location.nil?
+      @location_marker = GeojsonBuilder.new(@location).to_your_geojson_location
+      @agencies = @agencies.near(@location.coordinates, 1)
+    end
+  end
+
+  def filter_params
+    params.permit(:current_location, :city_search)
+  end
+end
+            </code></pre>
+          </section>
         </section>
 
 				<section>
