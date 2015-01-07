@@ -1,7 +1,11 @@
 .reveal .cover {
   color: white;
   text-align: left;
-  margin-left: -220px;
+  margin-left: -170px;
+}
+
+.reveal .end {
+  color: white;
 }
 
 .reveal .author {
@@ -9,5 +13,5 @@
 }
 
 body {
-  background: #afea9d;
+  background: #b8ee5a;
 }
